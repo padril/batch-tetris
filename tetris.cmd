@@ -13,6 +13,41 @@ rem CONSTANTS
 rem =========
 
 
+
+
+rem Delaytime
+rem the higher the delay constant, the longer, but more accurate the delay
+rem calculation will be
+set delay_constant=10
+set /a delay_constant_50=%delay_constant%+50
+
+echo Getting information about your terminal's speed...
+for %%t in (25 %delay_constant% %delay_constant_50%) do (
+    call :get_time time1
+    call :delay_ %%t
+    call :get_time time2
+    call :time_dif return[%%t] !time1! !time2!
+)
+
+set /a delay_per50=!return[%delay_constant_50%]!-!return[%delay_constant%]!
+set /a const_delay=!delay_per50!/2
+set /a const_delay=!return[25]!-!const_delay!
+
+call :get_time time1
+call :delay_ 50
+call :get_time time2
+call :time_dif return !time1! !time2!
+set /a predicted=!delay_per50!+!const_delay!
+echo Predicted delay: !predicted!0ms, Actual delay: !return!0ms
+
+call :get_time time1
+call :delay 300
+call :get_time time2
+call :time_dif return !time1! !time2!
+echo Desired delay: 3000ms, Actual delay : !return!0ms
+
+
+
 rem Util
 set /a true=1
 set /a false=0
@@ -65,16 +100,40 @@ echo %ANSI%?25l
 echo %ANSI%0m
 
 rem Initial block position
-set /a block_x=5
+set /a block_x=%GAME_WIDTH%/2
 set /a block_y=0
+
 
 rem Initial display
 call :display_block LBLOCK !block_x! !block_y!
 call :draw_board
 
 
-rem Descent loop
-for /l %%T in ( 0 1 36 ) do (
+rem Game loop
+for /l %%T in ( 0 1 100 ) do (
+    call :get_time time1
+    call :get_input key_pressed
+    call :get_time time2
+
+    if !key_pressed! equ A (
+        call :clear_block LBLOCK !block_x! !block_y!
+        set /a block_x=!block_x!-1
+        call :display_block LBLOCK !block_x! !block_y!
+        call :draw_board
+        call :time_dif dif !time1! !time2!
+        set /a dif=100-!dif!
+        call :delay !dif!
+    )
+    if !key_pressed! equ D (
+        call :clear_block LBLOCK !block_x! !block_y!
+        set /a block_x=!block_x!+1
+        call :display_block LBLOCK !block_x! !block_y!
+        call :draw_board
+        call :time_dif dif !time1! !time2!
+        set /a dif=100-!dif!
+        call :delay !dif!
+    )
+
     rem clear before we check collision
     call :clear_block LBLOCK !block_x! !block_y!
 
@@ -109,11 +168,35 @@ rem ==============
 rem UTIL FUNCTIONS
 rem ==============
 
+rem params - return, time1, time2
+:time_dif
+    set /a %~1=%~3-%~2
+    if !%~1! lss 0 (
+        set /a %~1=6000+%~1
+    )
+    exit /b 0
 
-rem param - time (changes based on speed of terminal)
+rem params - return
+:get_time
+    for /f "tokens=4 delims=:" %%i in ('echo.^|time') do set "%~1=%%i"
+    rem weird subtraction thing to get around octal problems
+    set /a %~1=1!%~1:,=!
+    exit /b 0
+
+
+rem param - time in centiseconds (0.01 seconds)
 :delay
-    for /l %%Z in ( 0 1 %~1 ) do (
-        rem delay
+    set /a number_of_iterations=%~1-!const_delay!
+    set /a number_of_iterations=!number_of_iterations!*50
+    set /a number_of_iterations=!number_of_iterations!/!delay_per50!
+    call :delay_ !number_of_iterations!
+    exit /b 0
+
+
+rem param - iterations
+:delay_
+    for /l %%i in ( 0 1 %~1 ) do (
+        ping localhost -n 1 >nul
     )
     exit /b 0
 
@@ -129,6 +212,12 @@ rem params - var, "!var!"
 rem ==============
 rem GAME FUNCTIONS
 rem ==============
+
+
+rem param - return
+:get_input
+    for /f "delims=" %%A in ('choice /c ASD /n /t 1 /d s') do set "%~1=%%A" 
+    exit /b 0
 
 
 :draw_board
