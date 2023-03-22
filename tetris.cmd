@@ -6,18 +6,77 @@ cls
 setlocal enabledelayedexpansion
 
 
+call :init
+call :main
+call :cleanup
+goto :end
+
+
+
+
+rem ====
+rem INIT
+rem ====
+:init
+
+    call :constants
+    call :delay_calculation
+
+exit /b 0
+
+
 
 
 rem =========
 rem CONSTANTS
 rem =========
+:constants
+
+    rem LANGUAGE UTIL
+    set /a true=1
+    set /a false=0
+
+    rem ANSI
+    for /f %%a in ('echo prompt $E ^| cmd') do set "ANSI=%%a["
+    set /a RED=41
+    set /a BLACK=40
 
 
-rem LANGUAGE UTIL
-set /a true=1
-set /a false=0
+    rem Game constants, subtracting 1 to better use 0 indexed ranges
+    set /a GAME_HEIGHT=15 - 1
+    set /a GAME_WIDTH=20 - 1
+    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+        for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
+            set GAME_BOARD[%%y][%%x]=%BLACK%
+        )
+    )
 
-rem Delay calculations
+    rem Lists suck in batch, but this is a way to do them
+    rem Each of these is a ANSI color array representing a tetronimo
+
+    rem LBLOCK
+    set /a LBLOCK_WIDTH=2 - 1
+    set /a LBLOCK_HEIGHT=3 - 1
+    set x=0
+    set y=0
+    for %%n in ( %BLACK% %RED% %BLACK% %RED% %RED% %RED% ) do (
+        set LBLOCK[!y!][!x!]=%%n
+        if !x! equ %LBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+
+exit /b 0
+
+
+
+
+rem =================
+rem DELAY CALCULATION
+rem =================
 :delay_calculation
 
     rem the higher the calculation floor and gap, the longer
@@ -91,45 +150,30 @@ rem Delay calculations
     echo.
     echo Press any key to start
     pause >nul
-    
 
     cls
 
+exit /b 0
 
 
-rem ANSI
-for /f %%a in ('echo prompt $E ^| cmd') do set "ANSI=%%a["
-set /a RED=41
-set /a BLACK=40
 
 
-rem Game constants, subtracting 1 to better use 0 indexed ranges
-set /a GAME_HEIGHT=15 - 1
-set /a GAME_WIDTH=20 - 1
-for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
-    for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-        set GAME_BOARD[%%y][%%x]=%BLACK%
-    )
-)
+rem ====
+rem MAIN
+rem ====
+:main
 
+    rem Set ANSI settings
+    echo %ANSI%?25l
+    echo %ANSI%0m
 
-rem Lists suck in batch, but this is a way to do them
-rem Each of these is a ANSI color array representing a tetronimo
+    rem Initial block position
+    set /a block_x=%GAME_WIDTH%/2
+    set /a block_y=0
 
-rem LBLOCK
-set /a LBLOCK_WIDTH=2 - 1
-set /a LBLOCK_HEIGHT=3 - 1
-set x=0
-set y=0
-for %%n in ( %BLACK% %RED% %BLACK% %RED% %RED% %RED% ) do (
-    set LBLOCK[!y!][!x!]=%%n
-    if !x! equ %LBLOCK_WIDTH% (
-        set /a y=!y!+1
-        set /a x=0
-    ) else (
-        set /a x= !x! + 1
-    )
-)
+    call :game
+
+exit /b 0
 
 
 
@@ -137,73 +181,62 @@ for %%n in ( %BLACK% %RED% %BLACK% %RED% %RED% %RED% ) do (
 rem ====
 rem GAME
 rem ====
+:game
 
+    rem Initial display
+    call :display_block LBLOCK !block_x! !block_y!
+    call :draw_board
 
-rem Initialization stuff, TODO(padril): move to an init function
-echo %ANSI%?25l
-echo %ANSI%0m
+    rem Game loop
+    for /l %%T in ( 0 1 100 ) do (
+        call :get_time time1
+        call :get_input key_pressed
+        call :get_time time2
 
-rem Initial block position
-set /a block_x=%GAME_WIDTH%/2
-set /a block_y=0
+        if !key_pressed! equ A (
+            call :clear_block LBLOCK !block_x! !block_y!
+            set /a block_x=!block_x!-1
+            call :display_block LBLOCK !block_x! !block_y!
+            call :draw_board
+            call :time_dif dif !time1! !time2!
+            set /a dif=1000-!dif!
+            call :delay !dif!
+        )
+        if !key_pressed! equ D (
+            call :clear_block LBLOCK !block_x! !block_y!
+            set /a block_x=!block_x!+1
+            call :display_block LBLOCK !block_x! !block_y!
+            call :draw_board
+            call :time_dif dif !time1! !time2!
+            set /a dif=1000-!dif!
+            call :delay !dif!
+        )
 
-
-rem Initial display
-call :display_block LBLOCK !block_x! !block_y!
-call :draw_board
-
-
-rem Game loop
-for /l %%T in ( 0 1 100 ) do (
-    call :get_time time1
-    call :get_input key_pressed
-    call :get_time time2
-
-    if !key_pressed! equ A (
+        rem clear before we check collision
         call :clear_block LBLOCK !block_x! !block_y!
-        set /a block_x=!block_x!-1
-        call :display_block LBLOCK !block_x! !block_y!
-        call :draw_board
-        call :time_dif dif !time1! !time2!
-        set /a dif=1000-!dif!
-        call :delay !dif!
+
+        rem move pos down, and check collision with hypothetical position
+        set /a block_y=!block_y!+1
+        call :check_colision return LBLOCK !block_x! !block_y!
+
+        rem there was a collision!
+        if !return! equ %false% (
+            rem halt the tetronimo
+            set /a block_y=!block_y!-1
+            call :display_block LBLOCK !block_x! !block_y!
+
+            rem spawn a new one
+            set /a block_x=5
+            set /a block_y=0
+            call :display_block LBLOCK !block_x! !block_y!
+        rem just move down
+        ) else (
+            call :display_block LBLOCK !block_x! !block_y!
+            call :draw_board
+        )
     )
-    if !key_pressed! equ D (
-        call :clear_block LBLOCK !block_x! !block_y!
-        set /a block_x=!block_x!+1
-        call :display_block LBLOCK !block_x! !block_y!
-        call :draw_board
-        call :time_dif dif !time1! !time2!
-        set /a dif=1000-!dif!
-        call :delay !dif!
-    )
 
-    rem clear before we check collision
-    call :clear_block LBLOCK !block_x! !block_y!
-
-    rem move pos down, and check collision with hypothetical position
-    set /a block_y=!block_y!+1
-    call :check_colision return LBLOCK !block_x! !block_y!
-
-    rem there was a collision!
-    if !return! equ %false% (
-        rem halt the tetronimo
-        set /a block_y=!block_y!-1
-        call :display_block LBLOCK !block_x! !block_y!
-
-        rem spawn a new one
-        set /a block_x=5
-        set /a block_y=0
-        call :display_block LBLOCK !block_x! !block_y!
-    rem just move down
-    ) else (
-        call :display_block LBLOCK !block_x! !block_y!
-        call :draw_board
-    )
-)
-
-
-goto :cleanup
+exit /b 0
 
 
 
@@ -261,7 +294,7 @@ rem param - iterations
 rem params - var, "!var!"
 :recurse
     set %~1=%~2
-    exit /b 0
+exit /b 0
 
 
 
@@ -274,7 +307,7 @@ rem ==============
 rem param - return
 :get_input
     for /f "delims=" %%A in ('choice /c ASD /n /t 1 /d s') do set "%~1=%%A" 
-    exit /b 0
+exit /b 0
 
 
 :draw_board
@@ -283,7 +316,7 @@ rem param - return
             echo %ANSI%%%y;%%xH%ANSI%8;!GAME_BOARD[%%y][%%x]!m#
         )
     )
-    exit /b 0
+exit /b 0
 
 
 rem params - block_name, xpos, ypos
@@ -298,7 +331,7 @@ rem params - block_name, xpos, ypos
             )
         )
     )
-    exit /b 0
+exit /b 0
 
 
 rem params - block_name, xpos, ypos
@@ -313,7 +346,7 @@ rem params - block_name, xpos, ypos
             )
         )
     )
-    exit /b 0
+exit /b 0
 
 
 rem params - return, block_name, xpos, ypos
@@ -341,7 +374,7 @@ rem make sure you clear the block before calling
         )
     )
     set %~1=%true%
-    exit /b 0
+exit /b 0
 
 
 
@@ -349,14 +382,16 @@ rem make sure you clear the block before calling
 rem =======
 rem CLEANUP
 rem =======
-
-
 :cleanup
 
-echo %ANSI%%GAME_HEIGHT%;%GAME_WIDTH%H%ANSI%0m
+    echo %ANSI%%GAME_HEIGHT%;%GAME_WIDTH%H%ANSI%0m
+
+exit /b 0
 
 
 
+
+:end
 
 endlocal
 exit /b 0
