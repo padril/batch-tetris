@@ -13,44 +13,88 @@ rem CONSTANTS
 rem =========
 
 
-
-
-rem Delaytime
-rem the higher the delay constant, the longer, but more accurate the delay
-rem calculation will be
-set delay_constant=10
-set /a delay_constant_50=%delay_constant%+50
-
-echo Getting information about your terminal's speed...
-for %%t in (25 %delay_constant% %delay_constant_50%) do (
-    call :get_time time1
-    call :delay_ %%t
-    call :get_time time2
-    call :time_dif return[%%t] !time1! !time2!
-)
-
-set /a delay_per50=!return[%delay_constant_50%]!-!return[%delay_constant%]!
-set /a const_delay=!delay_per50!/2
-set /a const_delay=!return[25]!-!const_delay!
-
-call :get_time time1
-call :delay_ 50
-call :get_time time2
-call :time_dif return !time1! !time2!
-set /a predicted=!delay_per50!+!const_delay!
-echo Predicted delay: !predicted!0ms, Actual delay: !return!0ms
-
-call :get_time time1
-call :delay 300
-call :get_time time2
-call :time_dif return !time1! !time2!
-echo Desired delay: 3000ms, Actual delay : !return!0ms
-
-
-
-rem Util
+rem LANGUAGE UTIL
 set /a true=1
 set /a false=0
+
+rem Delay calculations
+:delay_calculation
+
+    rem the higher the calculation floor and gap, the longer
+    rem but more accurate the delay calculation will be
+    set /a delay_calculation.CALCULATION_FLOOR=50
+    set /a delay_calculation.CALCULATION_GAP=50
+    set /a %delay_calculation.CALCULATION_HALF_GAP=^
+          %delay_calculation.CALCULATION_GAP%/2
+    set /a delay_calculation.CALCULATION_CEIL=^
+          %delay_calculation.CALCULATION_FLOOR%^
+          +%delay_calculation.CALCULATION_GAP%
+
+    echo Getting information about your terminal's speed...
+    for %%i in (%delay_calculation.CALCULATION_HALF_GAP%^
+                %delay_calculation.CALCULATION_FLOOR%^
+                %delay_calculation.CALCULATION_CEIL%) do (
+        call :get_time delay_calculation.start
+        call :delay_ %%i
+        call :get_time delay_calculation.end
+        call :time_dif delay_calculation.dif[%%i]^
+                       !delay_calculation.start!^
+                       !delay_calculation.end!
+    )
+
+    rem Calculate linear approximation
+    set /a delay_calculation.DELAY_PER_GAP=^
+        !delay_calculation.dif[%delay_calculation.CALCULATION_CEIL%]!^
+        -!delay_calculation.dif[%delay_calculation.CALCULATION_FLOOR%]!
+    set /a delay_calculation.CONSTANT_DELAY=^
+        !delay_calculation.dif[%delay_calculation.CALCULATION_HALF_GAP%]!^
+        -!delay_calculation.DELAY_PER_GAP!/2
+
+    echo Predicting a delay...
+    set /a delay_calculation.predicted=^
+        !delay_calculation.DELAY_PER_GAP!^
+        +!delay_calculation.CONSTANT_DELAY!
+    call :get_time delay_calculation.start
+    call :delay_ %delay_calculation.CALCULATION_GAP%
+    call :get_time delay_calculation.end
+    call :time_dif delay_calculation.dif^
+                   !delay_calculation.start!^
+                   !delay_calculation.end!
+    echo    Predicted delay: !delay_calculation.predicted!ms
+    echo    Actual delay:    !delay_calculation.dif!ms
+    
+    echo Adjusting based on prediction...
+    rem Adjustment is a 'floating' point number.
+    rem We will only adjust by a percentage of adjustment
+    set /a delay_calculation.ADJUSTMENT_DECIMALS=1000
+    set /a delay_calculation.ADJUSTMENT_AMOUNT=2
+    set /a delay_calculation.ADJUSTMENT=^
+        ((!delay_calculation.predicted!*%delay_calculation.ADJUSTMENT_DECIMALS%)^
+        /!delay_calculation.dif!-%delay_calculation.ADJUSTMENT_DECIMALS%)^
+        /%delay_calculation.ADJUSTMENT_AMOUNT%+%delay_calculation.ADJUSTMENT_DECIMALS%
+
+    echo Testing delay function on 500ms (0.5 seconds)...
+    call :get_time delay_calculation.start
+    call :delay 500
+    call :get_time delay_calculation.end
+    call :time_dif delay_calculation.dif^
+                   !delay_calculation.start!^
+                   !delay_calculation.end!
+    echo    Attempted delay: 500ms
+    echo    Actual delay:    !delay_calculation.dif!ms
+    echo    (Difference between attempted and actual should be ^<= 100ms)
+
+    timeout /t 3 /nobreak >nul
+
+    cls
+
+    echo.
+    echo Press any key to start
+    pause >nul
+    
+
+    cls
+
 
 
 rem ANSI
@@ -121,7 +165,7 @@ for /l %%T in ( 0 1 100 ) do (
         call :display_block LBLOCK !block_x! !block_y!
         call :draw_board
         call :time_dif dif !time1! !time2!
-        set /a dif=100-!dif!
+        set /a dif=1000-!dif!
         call :delay !dif!
     )
     if !key_pressed! equ D (
@@ -130,7 +174,7 @@ for /l %%T in ( 0 1 100 ) do (
         call :display_block LBLOCK !block_x! !block_y!
         call :draw_board
         call :time_dif dif !time1! !time2!
-        set /a dif=100-!dif!
+        set /a dif=1000-!dif!
         call :delay !dif!
     )
 
@@ -168,28 +212,41 @@ rem ==============
 rem UTIL FUNCTIONS
 rem ==============
 
+
+rem params - return, function name, number of params in function, params
+:time_it
+    rem TODO: implement
+    exit /b 0
+
+
 rem params - return, time1, time2
 :time_dif
     set /a %~1=%~3-%~2
+    rem if the diff is negative, then %~3 was actually 60 seconds ahead
     if !%~1! lss 0 (
-        set /a %~1=6000+%~1
+        set /a %~1=60000+%~1
     )
     exit /b 0
+
 
 rem params - return
 :get_time
     for /f "tokens=4 delims=:" %%i in ('echo.^|time') do set "%~1=%%i"
-    rem weird subtraction thing to get around octal problems
-    set /a %~1=1!%~1:,=!
+    rem add a one to the start so we don't have octal problems
+    rem add a zero to turn into ms
+    set /a %~1=1!%~1:,=!0
+    set /a %~1=%~1-100000
     exit /b 0
 
 
-rem param - time in centiseconds (0.01 seconds)
+rem param - time in milliseconds
 :delay
-    set /a number_of_iterations=%~1-!const_delay!
-    set /a number_of_iterations=!number_of_iterations!*50
-    set /a number_of_iterations=!number_of_iterations!/!delay_per50!
-    call :delay_ !number_of_iterations!
+    set /a delay.adjusted_time=%~1*!delay_calculation.ADJUSTMENT!
+    set /a delay.adjusted_time=!delay.adjusted_time!/%delay_calculation.ADJUSTMENT_DECIMALS%
+    set /a delay.iterations=!delay.adjusted_time!-!delay_calculation.CONSTANT_DELAY!
+    set /a delay.iterations=!delay.iterations!*%delay_calculation.CALCULATION_GAP%
+    set /a delay.iterations=!delay.iterations!/!delay_calculation.DELAY_PER_GAP!
+    call :delay_ !delay.iterations!
     exit /b 0
 
 
