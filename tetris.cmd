@@ -1,9 +1,32 @@
-rem Copyright (C) 2023 Leo Peckham
-
-
 @echo off
 cls
 setlocal enabledelayedexpansion
+
+rem Copyright (C) 2023 Leo Peckham
+
+
+rem TODO! AND A BIG FUCKING TODO AT THAT
+rem I CANNOT FUCKING FIGURE OUT HOW TO GET INPUT
+rem TO WORK ALL IN THE SAME WINDOW, CAUSE HAVING TWO
+rem PROCESSES GOING SIMULTANEOUSLY IS SERIOUSLY A BITCH
+rem USING TWO WINDOWS DOESN't REALLY WORK EITHER SO
+rem I"M JUST GOING TO KEEP HAVING TO THINK OF A WORKAROUND
+rem AND THATS A BITCH
+
+rem CURRENT IDEAS:
+rem     - USE THE SOMETIMES FAILING METHOD
+rem     - JUST MAKE REALLY GOOD GUESSED OF WHEN WE CAN
+rem       CHECK FOR INPUT
+rem     - maybe using two windows could work in
+rem       a different environment
+
+rem I slept on it and have a good idea
+rem use a call with two start commands to check for input, or terminate early
+rem if terminated early, it will flag to not start a new listen resquest on 
+rem reentry it will always go straight to drawing the frame after, which is fine
+rem since it will prevent a lot of presses of the same key
+
+
 
 
 call :init
@@ -18,9 +41,8 @@ rem ====
 rem INIT
 rem ====
 :init
-
     call :constants
-    call :delay_calculation
+    rem call :delay_calculation
 
 exit /b 0
 
@@ -41,6 +63,10 @@ rem =========
     set /a RED=41
     set /a BLACK=40
 
+    rem Set ANSI settings
+    echo %ANSI%?25l
+    echo %ANSI%0m
+
 
     rem Game constants, subtracting 1 to better use 0 indexed ranges
     set /a GAME_HEIGHT=15 - 1
@@ -55,6 +81,7 @@ rem =========
     rem Each of these is a ANSI color array representing a tetronimo
 
     rem LBLOCK
+    set "BLOCK_ID[0]=LBLOCK"
     set /a LBLOCK_WIDTH=2 - 1
     set /a LBLOCK_HEIGHT=3 - 1
     set x=0
@@ -62,6 +89,22 @@ rem =========
     for %%n in ( %BLACK% %RED% %BLACK% %RED% %RED% %RED% ) do (
         set LBLOCK[!y!][!x!]=%%n
         if !x! equ %LBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+
+    rem SBLOCK
+    set "BLOCK_ID[1]=SBLOCK"
+    set /a SBLOCK_WIDTH=2 - 1
+    set /a SBLOCK_HEIGHT=2 - 1
+    set x=0
+    set y=0
+    for %%n in ( %RED% %RED% %RED% %RED% ) do (
+        set SBLOCK[!y!][!x!]=%%n
+        if !x! equ %SBLOCK_WIDTH% (
             set /a y=!y!+1
             set /a x=0
         ) else (
@@ -81,7 +124,7 @@ rem =================
 
     rem the higher the calculation floor and gap, the longer
     rem but more accurate the delay calculation will be
-    set /a delay_calculation.CALCULATION_FLOOR=50
+    set /a delay_calculation.CALCULATION_FLOOR=30
     set /a delay_calculation.CALCULATION_GAP=50
     set /a %delay_calculation.CALCULATION_HALF_GAP=^
           %delay_calculation.CALCULATION_GAP%/2
@@ -126,7 +169,7 @@ rem =================
     rem Adjustment is a 'floating' point number.
     rem We will only adjust by a percentage of adjustment
     set /a delay_calculation.ADJUSTMENT_DECIMALS=1000
-    set /a delay_calculation.ADJUSTMENT_AMOUNT=2
+    set /a delay_calculation.ADJUSTMENT_AMOUNT=1
     set /a delay_calculation.ADJUSTMENT=^
         ((!delay_calculation.predicted!*%delay_calculation.ADJUSTMENT_DECIMALS%)^
         /!delay_calculation.dif!-%delay_calculation.ADJUSTMENT_DECIMALS%)^
@@ -142,10 +185,6 @@ rem =================
     echo    Attempted delay: 500ms
     echo    Actual delay:    !delay_calculation.dif!ms
     echo    (Difference between attempted and actual should be ^<= 100ms)
-
-    timeout /t 3 /nobreak >nul
-
-    cls
 
     echo.
     echo Press any key to start
@@ -163,15 +202,8 @@ rem MAIN
 rem ====
 :main
 
-    rem Set ANSI settings
-    echo %ANSI%?25l
-    echo %ANSI%0m
-
-    rem Initial block position
-    set /a block_x=%GAME_WIDTH%/2
-    set /a block_y=0
-
     call :game
+
 
 exit /b 0
 
@@ -183,58 +215,70 @@ rem GAME
 rem ====
 :game
 
-    rem Initial display
-    call :display_block LBLOCK !block_x! !block_y!
-    call :draw_board
+    set /a tick=0
+    set /a x_pos=5
+    set /a y_pos=0
+    set /a rand_id=!random! * 2 /32768
+    set current_block=^^!BLOCK_ID[!rand_id!]^^!
+    call :recurse current_block "!current_block!"
+    set /a culm_dif=900
 
-    rem Game loop
-    for /l %%T in ( 0 1 100 ) do (
+    :loop
         call :get_time time1
-        call :get_input key_pressed
+        rem I cannot think of a better way to do this
+        for /f %%i in ('start /b cmd /c "choice /n /c ASD0 /t 1 /d 0"') do set key_pressed=%%i
         call :get_time time2
-
-        if !key_pressed! equ A (
-            call :clear_block LBLOCK !block_x! !block_y!
-            set /a block_x=!block_x!-1
-            call :display_block LBLOCK !block_x! !block_y!
+        call :time_dif dif !time1! !time2!
+        if !dif! geq !culm_dif! (
+            set /a culm_dif=900
+            call :clear_block !current_block! !x_pos! !y_pos!
+            set /a y_pos+=1
+            call :check_collision collided !current_block! !x_pos! !y_pos!
+            if !collided! equ %true% (
+                set /a y_pos-=1
+                call :display_block !current_block! !x_pos! !y_pos!
+                set /a x_pos=%GAME_WIDTH%/2
+                set /a y_pos=0
+                set /a rand_id=!random! * 2 / 32768
+                set current_block=^^!BLOCK_ID[!rand_id!]^^!
+                call :recurse current_block "!current_block!"
+            )
+            call :display_block !current_block! !x_pos! !y_pos!
             call :draw_board
-            call :time_dif dif !time1! !time2!
-            set /a dif=1000-!dif!
-            call :delay !dif!
-        )
-        if !key_pressed! equ D (
-            call :clear_block LBLOCK !block_x! !block_y!
-            set /a block_x=!block_x!+1
-            call :display_block LBLOCK !block_x! !block_y!
-            call :draw_board
-            call :time_dif dif !time1! !time2!
-            set /a dif=1000-!dif!
-            call :delay !dif!
-        )
-
-        rem clear before we check collision
-        call :clear_block LBLOCK !block_x! !block_y!
-
-        rem move pos down, and check collision with hypothetical position
-        set /a block_y=!block_y!+1
-        call :check_colision return LBLOCK !block_x! !block_y!
-
-        rem there was a collision!
-        if !return! equ %false% (
-            rem halt the tetronimo
-            set /a block_y=!block_y!-1
-            call :display_block LBLOCK !block_x! !block_y!
-
-            rem spawn a new one
-            set /a block_x=5
-            set /a block_y=0
-            call :display_block LBLOCK !block_x! !block_y!
-        rem just move down
         ) else (
-            call :display_block LBLOCK !block_x! !block_y!
-            call :draw_board
+            set /a culm_dif-=!dif!
         )
-    )
+        if "!key_pressed!" neq "0" (
+            call :clear_block !current_block! !x_pos! !y_pos!
+            set /a prev_x_pos=!x_pos!
+            set /a prev_y_pos=!y_pos!
+            if "!key_pressed!" equ "A" (
+                set /a x_pos-=1
+            )
+            if "!key_pressed!" equ "D" (
+                set /a x_pos+=1
+            )
+            if "!key_pressed!" equ "S" (
+                set /a y_pos+=1
+                set /a culm_dif=900
+            )
+            call :check_collision collided !current_block! !x_pos! !y_pos!
+            if !collided! equ %true% (
+                set /a x_pos=!prev_x_pos!
+                set /a y_pos=!prev_y_pos!
+                call :display_block !current_block! !x_pos! !y_pos!
+                set /a x_pos=%GAME_WIDTH%/2
+                set /a y_pos=0
+                set /A rand_id=!random! * 2 / 32768
+                set current_block=^^!BLOCK_ID[!rand_id!]^^!
+                call :recurse current_block "!current_block!"
+            )
+            call :display_block !current_block! !x_pos! !y_pos!
+            call :draw_board
+
+            goto :loop
+        )
+        goto :loop
 
 exit /b 0
 
@@ -316,6 +360,7 @@ exit /b 0
             echo %ANSI%%%y;%%xH%ANSI%8;!GAME_BOARD[%%y][%%x]!m#
         )
     )
+    echo %ANSI%0m
 exit /b 0
 
 
@@ -323,11 +368,11 @@ rem params - block_name, xpos, ypos
 :display_block
     for /l %%y in (0 1 !%~1_HEIGHT!) do (
         for /l %%x in (0 1 !%~1_WIDTH!) do (
-            set /a x_pos=%%x+%~2
-            set /a y_pos=%%y+%~3
+            set /a display_block.x_pos=%%x+%~2
+            set /a display_block.y_pos=%%y+%~3
             set color_=!%~1[%%y][%%x]!
             if !color_! neq %BLACK% (
-                set GAME_BOARD[!y_pos!][!x_pos!]=!color_!
+                set GAME_BOARD[!display_block.y_pos!][!display_block.x_pos!]=!color_!
             )
         )
     )
@@ -338,11 +383,11 @@ rem params - block_name, xpos, ypos
 :clear_block
     for /l %%y in (0 1 !%~1_HEIGHT!) do (
         for /l %%x in (0 1 !%~1_WIDTH!) do (
-            set /a x_pos=%%x+%~2
-            set /a y_pos=%%y+%~3
+            set /a clear_block.x_pos=%%x+%~2
+            set /a clear_block.y_pos=%%y+%~3
             set color_=!%~1[%%y][%%x]!
             if !color_! neq %BLACK% (
-                set GAME_BOARD[!y_pos!][!x_pos!]=%BLACK%
+                set GAME_BOARD[!clear_block.y_pos!][!clear_block.x_pos!]=%BLACK%
             )
         )
     )
@@ -351,29 +396,29 @@ exit /b 0
 
 rem params - return, block_name, xpos, ypos
 rem make sure you clear the block before calling
-:check_colision
+:check_collision
     set /a lowest_point=%~4+!%~2_HEIGHT!
     if !lowest_point! gtr %GAME_HEIGHT% (
-        set %~1=%false%
+        set %~1=%true%
         exit /b 0
     )
     for /l %%y in (0 1 !%~2_HEIGHT!) do (
         for /l %%x in (0 1 !%~2_WIDTH!) do (
-            set /a x_pos=%%x+%~3
-            set /a y_pos=%%y+%~4
+            set /a check_collision.x_pos=%%x+%~3
+            set /a check_collision.y_pos=%%y+%~4
             set color_=!%~2[%%y][%%x]!
-            set game_board_color=^^!GAME_BOARD[!y_pos!][!x_pos!]^^!
+            set game_board_color=^^!GAME_BOARD[!check_collision.y_pos!][!check_collision.x_pos!]^^!
             call :recurse game_board_color "!game_board_color!"
             if !game_board_color! neq %BLACK% (
                 rem `and` doesn't really work
                 if !color_! neq %BLACK% (
-                    set %~1=%false%
+                    set %~1=%true%
                     exit /b 0
                 )
             )
         )
     )
-    set %~1=%true%
+    set %~1=%false%
 exit /b 0
 
 
@@ -384,6 +429,9 @@ rem CLEANUP
 rem =======
 :cleanup
 
+    echo Cleanup...
+    pause >nul
+    del tetris_istream.txt >nul
     echo %ANSI%%GAME_HEIGHT%;%GAME_WIDTH%H%ANSI%0m
 
 exit /b 0
