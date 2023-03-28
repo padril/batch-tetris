@@ -1,37 +1,13 @@
+@rem Copyright (C) 2023 Leo Peckham
+
 @echo off
 cls
 setlocal enabledelayedexpansion
 
-rem Copyright (C) 2023 Leo Peckham
-
-
-rem TODO! AND A BIG FUCKING TODO AT THAT
-rem I CANNOT FUCKING FIGURE OUT HOW TO GET INPUT
-rem TO WORK ALL IN THE SAME WINDOW, CAUSE HAVING TWO
-rem PROCESSES GOING SIMULTANEOUSLY IS SERIOUSLY A BITCH
-rem USING TWO WINDOWS DOESN't REALLY WORK EITHER SO
-rem I"M JUST GOING TO KEEP HAVING TO THINK OF A WORKAROUND
-rem AND THATS A BITCH
-
-rem CURRENT IDEAS:
-rem     - USE THE SOMETIMES FAILING METHOD
-rem     - JUST MAKE REALLY GOOD GUESSED OF WHEN WE CAN
-rem       CHECK FOR INPUT
-rem     - maybe using two windows could work in
-rem       a different environment
-
-rem I slept on it and have a good idea
-rem use a call with two start commands to check for input, or terminate early
-rem if terminated early, it will flag to not start a new listen resquest on 
-rem reentry it will always go straight to drawing the frame after, which is fine
-rem since it will prevent a lot of presses of the same key
 
 
 
-
-call :init
 call :main
-call :cleanup
 goto :end
 
 
@@ -41,8 +17,13 @@ rem ====
 rem INIT
 rem ====
 :init
+
     call :constants
-    rem call :delay_calculation
+
+    rem Set ANSI settings
+    echo %ANSI%?25l
+    echo %ANSI%=7l
+    echo %ANSI%0m
 
 exit /b 0
 
@@ -60,17 +41,19 @@ rem =========
 
     rem ANSI
     for /f %%a in ('echo prompt $E ^| cmd') do set "ANSI=%%a["
-    set /a RED=41
-    set /a BLACK=40
+    set /a BLACK=   40
+    set /a RED=     41
+    set /a GREEN=   42
+    set /a YELLOW=  43
+    set /a BLUE=    44
+    set /a MAGENTA= 45
+    set /a CYAN=    46
+    set /a WHITE=   47
+    set /a ORANGE=  101
 
-    rem Set ANSI settings
-    echo %ANSI%?25l
-    echo %ANSI%0m
-
-
-    rem Game constants, subtracting 1 to better use 0 indexed ranges
+    rem Game constants, indexed at one to make ANSI
     set /a GAME_HEIGHT=15 - 1
-    set /a GAME_WIDTH=20 - 1
+    set /a GAME_WIDTH=10 - 1
     for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
         for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
             set GAME_BOARD[%%y][%%x]=%BLACK%
@@ -80,13 +63,79 @@ rem =========
     rem Lists suck in batch, but this is a way to do them
     rem Each of these is a ANSI color array representing a tetronimo
 
+    set /a NUMBER_OF_BLOCKS=7
+
+    rem IBLOCK
+    set "BLOCK_ID[0]=IBLOCK"
+    set /a IBLOCK_WIDTH=4 - 1
+    set /a IBLOCK_HEIGHT=1 - 1
+    set x=0
+    set y=0
+    for %%n in ( %CYAN% %CYAN% %CYAN% %CYAN% ) do (
+        set IBLOCK[!y!][!x!]=%%n
+        if !x! equ %IBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+
+    rem OBLOCK
+    set "BLOCK_ID[1]=OBLOCK"
+    set /a OBLOCK_WIDTH=2 - 1
+    set /a OBLOCK_HEIGHT=2 - 1
+    set x=0
+    set y=0
+    for %%n in ( %YELLOW% %YELLOW% %YELLOW% %YELLOW% ) do (
+        set OBLOCK[!y!][!x!]=%%n
+        if !x! equ %OBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+
+    rem TBLOCK
+    set "BLOCK_ID[2]=TBLOCK"
+    set /a TBLOCK_WIDTH=3 - 1
+    set /a TBLOCK_HEIGHT=2 - 1
+    set x=0
+    set y=0
+    for %%n in ( %BLACK% %MAGENTA% %BLACK% %MAGENTA% %MAGENTA% %MAGENTA% ) do (
+        set TBLOCK[!y!][!x!]=%%n
+        if !x! equ %TBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+
+    rem JBLOCK
+    set "BLOCK_ID[3]=JBLOCK"
+    set /a JBLOCK_WIDTH=2 - 1
+    set /a JBLOCK_HEIGHT=3 - 1
+    set x=0
+    set y=0
+    for %%n in ( %BLACK% %BLUE% %BLACK% %BLUE% %BLUE% %BLUE% ) do (
+        set JBLOCK[!y!][!x!]=%%n
+        if !x! equ %JBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
+    )
+    
     rem LBLOCK
-    set "BLOCK_ID[0]=LBLOCK"
+    set "BLOCK_ID[4]=LBLOCK"
     set /a LBLOCK_WIDTH=2 - 1
     set /a LBLOCK_HEIGHT=3 - 1
     set x=0
     set y=0
-    for %%n in ( %BLACK% %RED% %BLACK% %RED% %RED% %RED% ) do (
+    for %%n in ( %ORANGE% %BLACK% %ORANGE% %BLACK% %ORANGE% %ORANGE% ) do (
         set LBLOCK[!y!][!x!]=%%n
         if !x! equ %LBLOCK_WIDTH% (
             set /a y=!y!+1
@@ -97,12 +146,12 @@ rem =========
     )
 
     rem SBLOCK
-    set "BLOCK_ID[1]=SBLOCK"
-    set /a SBLOCK_WIDTH=2 - 1
+    set "BLOCK_ID[5]=SBLOCK"
+    set /a SBLOCK_WIDTH=3 - 1
     set /a SBLOCK_HEIGHT=2 - 1
     set x=0
     set y=0
-    for %%n in ( %RED% %RED% %RED% %RED% ) do (
+    for %%n in ( %BLACK% %GREEN% %GREEN% %GREEN% %GREEN% %BLACK% ) do (
         set SBLOCK[!y!][!x!]=%%n
         if !x! equ %SBLOCK_WIDTH% (
             set /a y=!y!+1
@@ -112,98 +161,21 @@ rem =========
         )
     )
 
-exit /b 0
-
-
-
-
-rem =================
-rem DELAY CALCULATION
-rem =================
-:delay_calculation
-
-    rem the higher the calculation floor and gap, the longer
-    rem but more accurate the delay calculation will be
-    set /a delay_calculation.CALCULATION_FLOOR=30
-    set /a delay_calculation.CALCULATION_GAP=50
-    set /a %delay_calculation.CALCULATION_HALF_GAP=^
-          %delay_calculation.CALCULATION_GAP%/2
-    set /a delay_calculation.CALCULATION_CEIL=^
-          %delay_calculation.CALCULATION_FLOOR%^
-          +%delay_calculation.CALCULATION_GAP%
-
-    echo Getting information about your terminal's speed...
-    for %%i in (%delay_calculation.CALCULATION_HALF_GAP%^
-                %delay_calculation.CALCULATION_FLOOR%^
-                %delay_calculation.CALCULATION_CEIL%) do (
-        call :get_time delay_calculation.start
-        call :delay_ %%i
-        call :get_time delay_calculation.end
-        call :time_dif delay_calculation.dif[%%i]^
-                       !delay_calculation.start!^
-                       !delay_calculation.end!
+    rem ZBLOCK
+    set "BLOCK_ID[6]=ZBLOCK"
+    set /a ZBLOCK_WIDTH=3 - 1
+    set /a ZBLOCK_HEIGHT=2 - 1
+    set x=0
+    set y=0
+    for %%n in ( %RED% %RED% %BLACK% %BLACK% %RED% %RED% ) do (
+        set ZBLOCK[!y!][!x!]=%%n
+        if !x! equ %ZBLOCK_WIDTH% (
+            set /a y=!y!+1
+            set /a x=0
+        ) else (
+            set /a x= !x! + 1
+        )
     )
-
-    rem Calculate linear approximation
-    set /a delay_calculation.DELAY_PER_GAP=^
-        !delay_calculation.dif[%delay_calculation.CALCULATION_CEIL%]!^
-        -!delay_calculation.dif[%delay_calculation.CALCULATION_FLOOR%]!
-    set /a delay_calculation.CONSTANT_DELAY=^
-        !delay_calculation.dif[%delay_calculation.CALCULATION_HALF_GAP%]!^
-        -!delay_calculation.DELAY_PER_GAP!/2
-
-    echo Predicting a delay...
-    set /a delay_calculation.predicted=^
-        !delay_calculation.DELAY_PER_GAP!^
-        +!delay_calculation.CONSTANT_DELAY!
-    call :get_time delay_calculation.start
-    call :delay_ %delay_calculation.CALCULATION_GAP%
-    call :get_time delay_calculation.end
-    call :time_dif delay_calculation.dif^
-                   !delay_calculation.start!^
-                   !delay_calculation.end!
-    echo    Predicted delay: !delay_calculation.predicted!ms
-    echo    Actual delay:    !delay_calculation.dif!ms
-    
-    echo Adjusting based on prediction...
-    rem Adjustment is a 'floating' point number.
-    rem We will only adjust by a percentage of adjustment
-    set /a delay_calculation.ADJUSTMENT_DECIMALS=1000
-    set /a delay_calculation.ADJUSTMENT_AMOUNT=1
-    set /a delay_calculation.ADJUSTMENT=^
-        ((!delay_calculation.predicted!*%delay_calculation.ADJUSTMENT_DECIMALS%)^
-        /!delay_calculation.dif!-%delay_calculation.ADJUSTMENT_DECIMALS%)^
-        /%delay_calculation.ADJUSTMENT_AMOUNT%+%delay_calculation.ADJUSTMENT_DECIMALS%
-
-    echo Testing delay function on 500ms (0.5 seconds)...
-    call :get_time delay_calculation.start
-    call :delay 500
-    call :get_time delay_calculation.end
-    call :time_dif delay_calculation.dif^
-                   !delay_calculation.start!^
-                   !delay_calculation.end!
-    echo    Attempted delay: 500ms
-    echo    Actual delay:    !delay_calculation.dif!ms
-    echo    (Difference between attempted and actual should be ^<= 100ms)
-
-    echo.
-    echo Press any key to start
-    pause >nul
-
-    cls
-
-exit /b 0
-
-
-
-
-rem ====
-rem MAIN
-rem ====
-:main
-
-    call :game
-
 
 exit /b 0
 
@@ -216,9 +188,9 @@ rem ====
 :game
 
     set /a tick=0
-    set /a x_pos=5
+    set /a x_pos=2
     set /a y_pos=0
-    set /a rand_id=!random! * 2 /32768
+    set /a rand_id=!random! * %NUMBER_OF_BLOCKS% /32768
     set current_block=^^!BLOCK_ID[!rand_id!]^^!
     call :recurse current_block "!current_block!"
     set /a culm_dif=900
@@ -237,9 +209,13 @@ rem ====
             if !collided! equ %true% (
                 set /a y_pos-=1
                 call :display_block !current_block! !x_pos! !y_pos!
+                call :check_lines
+                call :draw_board
+                timeout /t 1 /nobreak >nul
+                call :clear_lines
                 set /a x_pos=%GAME_WIDTH%/2
                 set /a y_pos=0
-                set /a rand_id=!random! * 2 / 32768
+                set /a rand_id=!random! * %NUMBER_OF_BLOCKS% / 32768
                 set current_block=^^!BLOCK_ID[!rand_id!]^^!
                 call :recurse current_block "!current_block!"
             )
@@ -267,17 +243,19 @@ rem ====
                 set /a x_pos=!prev_x_pos!
                 set /a y_pos=!prev_y_pos!
                 call :display_block !current_block! !x_pos! !y_pos!
+                call :check_lines
+                timeout /t 1 /nobreak >nul
+                call :clear_lines
                 set /a x_pos=%GAME_WIDTH%/2
                 set /a y_pos=0
-                set /A rand_id=!random! * 2 / 32768
+                set /A rand_id=!random! * %NUMBER_OF_BLOCKS% / 32768
                 set current_block=^^!BLOCK_ID[!rand_id!]^^!
                 call :recurse current_block "!current_block!"
             )
             call :display_block !current_block! !x_pos! !y_pos!
             call :draw_board
-
-            goto :loop
         )
+
         goto :loop
 
 exit /b 0
@@ -347,6 +325,28 @@ rem ==============
 rem GAME FUNCTIONS
 rem ==============
 
+rem params - y
+:move_line_down
+    set /a move_line_down.new_y=%~1 + 1
+    for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
+        set GAME_BOARD[!move_line_down.new_y!][%%x]=!GAME_BOARD[%~1][%%x]!
+    )
+    exit /b 0
+
+:clear_lines
+    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+        if !GAME_BOARD[%%y][0]! equ %WHITE% (
+            set /a clear_lines.above=%%y - 1
+            for /l %%n in ( !clear_lines.above! -1 1 ) do (
+                call :move_line_down %%n
+            )
+            for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
+                set GAME_BOARD[0][%%x]=%BLACK%
+            )
+        )
+    )
+    exit /b 0
+
 
 rem param - return
 :get_input
@@ -354,11 +354,33 @@ rem param - return
 exit /b 0
 
 
-:draw_board
+:check_lines
     for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+        set complete_line=%true%
         for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-            echo %ANSI%%%y;%%xH%ANSI%8;!GAME_BOARD[%%y][%%x]!m#
+            if !GAME_BOARD[%%y][%%x]! equ %BLACK% (
+                set complete_line=%false%
+            )
         )
+        if !complete_line! equ %true% (
+            for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
+                set GAME_BOARD[%%y][%%x]=%WHITE%
+            )
+        )
+    )
+    exit /b 0
+
+
+:draw_board
+    echo %ANSI%H
+    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+        set draw_board.line[%%y]=
+        for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
+            set draw_board.line[%%y]=!draw_board.line[%%y]!%ANSI%8;!GAME_BOARD[%%y][%%x]!m#
+        )
+    )
+    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+        echo !draw_board.line[%%y]!
     )
     echo %ANSI%0m
 exit /b 0
@@ -437,6 +459,18 @@ rem =======
 exit /b 0
 
 
+
+
+rem ====
+rem MAIN
+rem ====
+:main
+
+    call :init
+    call :game
+    call :cleanup
+
+exit /b 0
 
 
 :end
