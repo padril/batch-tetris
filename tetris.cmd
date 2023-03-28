@@ -36,8 +36,8 @@ rem =========
 :constants
 
     rem LANGUAGE UTIL
-    set /a true=1
     set /a false=0
+    set /a true=1
 
     rem ANSI
     for /f %%a in ('echo prompt $E ^| cmd') do set "ANSI=%%a["
@@ -51,131 +51,24 @@ rem =========
     set /a WHITE=   47
     set /a ORANGE=  101
 
-    rem Game constants, indexed at one to make ANSI
-    set /a GAME_HEIGHT=15 - 1
-    set /a GAME_WIDTH=10 - 1
-    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
-        for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-            set GAME_BOARD[%%y][%%x]=%BLACK%
+    rem Game constants, subtracting 1 to index at 0
+    set /a BOARD_HEIGHT= 15 - 1
+    set /a BOARD_WIDTH=  10 - 1
+    for /l %%y in ( 0 1 %BOARD_HEIGHT% ) do (
+        for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+            set /a BOARD[%%y][%%x]=%BLACK%
         )
     )
 
-    rem Lists suck in batch, but this is a way to do them
-    rem Each of these is a ANSI color array representing a tetronimo
+    set /a NUMBER_OF_BLOCKS=0
 
-    set /a NUMBER_OF_BLOCKS=7
-
-    rem IBLOCK
-    set "BLOCK_ID[0]=IBLOCK"
-    set /a IBLOCK_WIDTH=4 - 1
-    set /a IBLOCK_HEIGHT=1 - 1
-    set x=0
-    set y=0
-    for %%n in ( %CYAN% %CYAN% %CYAN% %CYAN% ) do (
-        set IBLOCK[!y!][!x!]=%%n
-        if !x! equ %IBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-
-    rem OBLOCK
-    set "BLOCK_ID[1]=OBLOCK"
-    set /a OBLOCK_WIDTH=2 - 1
-    set /a OBLOCK_HEIGHT=2 - 1
-    set x=0
-    set y=0
-    for %%n in ( %YELLOW% %YELLOW% %YELLOW% %YELLOW% ) do (
-        set OBLOCK[!y!][!x!]=%%n
-        if !x! equ %OBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-
-    rem TBLOCK
-    set "BLOCK_ID[2]=TBLOCK"
-    set /a TBLOCK_WIDTH=3 - 1
-    set /a TBLOCK_HEIGHT=2 - 1
-    set x=0
-    set y=0
-    for %%n in ( %BLACK% %MAGENTA% %BLACK% %MAGENTA% %MAGENTA% %MAGENTA% ) do (
-        set TBLOCK[!y!][!x!]=%%n
-        if !x! equ %TBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-
-    rem JBLOCK
-    set "BLOCK_ID[3]=JBLOCK"
-    set /a JBLOCK_WIDTH=2 - 1
-    set /a JBLOCK_HEIGHT=3 - 1
-    set x=0
-    set y=0
-    for %%n in ( %BLACK% %BLUE% %BLACK% %BLUE% %BLUE% %BLUE% ) do (
-        set JBLOCK[!y!][!x!]=%%n
-        if !x! equ %JBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-    
-    rem LBLOCK
-    set "BLOCK_ID[4]=LBLOCK"
-    set /a LBLOCK_WIDTH=2 - 1
-    set /a LBLOCK_HEIGHT=3 - 1
-    set x=0
-    set y=0
-    for %%n in ( %ORANGE% %BLACK% %ORANGE% %BLACK% %ORANGE% %ORANGE% ) do (
-        set LBLOCK[!y!][!x!]=%%n
-        if !x! equ %LBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-
-    rem SBLOCK
-    set "BLOCK_ID[5]=SBLOCK"
-    set /a SBLOCK_WIDTH=3 - 1
-    set /a SBLOCK_HEIGHT=2 - 1
-    set x=0
-    set y=0
-    for %%n in ( %BLACK% %GREEN% %GREEN% %GREEN% %GREEN% %BLACK% ) do (
-        set SBLOCK[!y!][!x!]=%%n
-        if !x! equ %SBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
-
-    rem ZBLOCK
-    set "BLOCK_ID[6]=ZBLOCK"
-    set /a ZBLOCK_WIDTH=3 - 1
-    set /a ZBLOCK_HEIGHT=2 - 1
-    set x=0
-    set y=0
-    for %%n in ( %RED% %RED% %BLACK% %BLACK% %RED% %RED% ) do (
-        set ZBLOCK[!y!][!x!]=%%n
-        if !x! equ %ZBLOCK_WIDTH% (
-            set /a y=!y!+1
-            set /a x=0
-        ) else (
-            set /a x= !x! + 1
-        )
-    )
+    call :block_constructor IBLOCK 4 1 %CYAN% "1 1 1 1"
+    call :block_constructor OBLOCK 2 2 %YELLOW% "1 1 1 1"
+    call :block_constructor TBLOCK 3 2 %MAGENTA% "0 1 0 1 1 1"
+    call :block_constructor JBLOCK 2 3 %BLUE% "0 1 0 1 1 1"
+    call :block_constructor LBLOCK 2 3 %ORANGE% "1 0 1 0 1 1"
+    call :block_constructor SBLOCK 3 2 %GREEN% "0 1 1 1 1 0"
+    call :block_constructor ZBLOCK 3 2 %RED% "1 1 0 0 1 1"
 
 exit /b 0
 
@@ -190,10 +83,12 @@ rem ====
     set /a tick=0
     set /a x_pos=2
     set /a y_pos=0
-    set /a rand_id=!random! * %NUMBER_OF_BLOCKS% /32768
+    set /a rand_id=!random! * !NUMBER_OF_BLOCKS! /32768
     set current_block=^^!BLOCK_ID[!rand_id!]^^!
     call :recurse current_block "!current_block!"
     set /a culm_dif=900
+
+    call :draw_board
 
     :loop
         call :get_time time1
@@ -213,9 +108,9 @@ rem ====
                 call :draw_board
                 timeout /t 1 /nobreak >nul
                 call :clear_lines
-                set /a x_pos=%GAME_WIDTH%/2
+                set /a x_pos=%BOARD_WIDTH%/2
                 set /a y_pos=0
-                set /a rand_id=!random! * %NUMBER_OF_BLOCKS% / 32768
+                set /a rand_id=!random! * !NUMBER_OF_BLOCKS! / 32768
                 set current_block=^^!BLOCK_ID[!rand_id!]^^!
                 call :recurse current_block "!current_block!"
             )
@@ -246,9 +141,9 @@ rem ====
                 call :check_lines
                 timeout /t 1 /nobreak >nul
                 call :clear_lines
-                set /a x_pos=%GAME_WIDTH%/2
+                set /a x_pos=%BOARD_WIDTH%/2
                 set /a y_pos=0
-                set /A rand_id=!random! * %NUMBER_OF_BLOCKS% / 32768
+                set /a rand_id=!random! * !NUMBER_OF_BLOCKS! / 32768
                 set current_block=^^!BLOCK_ID[!rand_id!]^^!
                 call :recurse current_block "!current_block!"
             )
@@ -266,6 +161,31 @@ exit /b 0
 rem ==============
 rem UTIL FUNCTIONS
 rem ==============
+
+rem fn( name, width, height, color, bit-array ) no ret
+:block_constructor
+
+    set BLOCK_ID[!NUMBER_OF_BLOCKS!]=%~1
+    set /a %~1.width=%~2 - 1
+    set /a %~1.height=%~3 - 1
+    set /a block_constructor.x=0
+    set /a block_constructor.y=0
+    for %%b in ( %~5 ) do (
+        if %%b equ 1 (
+            set /a %~1[!block_constructor.y!][!block_constructor.x!]=%~4
+        ) else (
+            set /a %~1[!block_constructor.y!][!block_constructor.x!]=%BLACK%    
+        )
+        if !block_constructor.x! equ !%~1.width! (
+            set /a block_constructor.y+=1
+            set /a block_constructor.x=0
+        ) else (
+            set /a block_constructor.x+=1
+        )
+    )
+    set /a NUMBER_OF_BLOCKS+=1
+
+exit /b 0
 
 
 rem params - return, function name, number of params in function, params
@@ -328,20 +248,20 @@ rem ==============
 rem params - y
 :move_line_down
     set /a move_line_down.new_y=%~1 + 1
-    for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-        set GAME_BOARD[!move_line_down.new_y!][%%x]=!GAME_BOARD[%~1][%%x]!
+    for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+        set /a BOARD[!move_line_down.new_y!][%%x]=!BOARD[%~1][%%x]!
     )
     exit /b 0
 
 :clear_lines
-    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
-        if !GAME_BOARD[%%y][0]! equ %WHITE% (
+    for /l %%y in ( 0 1 %BOARD_HEIGHT% ) do (
+        if !BOARD[%%y][0]! equ %WHITE% (
             set /a clear_lines.above=%%y - 1
             for /l %%n in ( !clear_lines.above! -1 1 ) do (
                 call :move_line_down %%n
             )
-            for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-                set GAME_BOARD[0][%%x]=%BLACK%
+            for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+                set /a BOARD[0][%%x]=%BLACK%
             )
         )
     )
@@ -355,16 +275,16 @@ exit /b 0
 
 
 :check_lines
-    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+    for /l %%y in ( 0 1 %BOARD_HEIGHT% ) do (
         set complete_line=%true%
-        for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-            if !GAME_BOARD[%%y][%%x]! equ %BLACK% (
+        for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+            if !BOARD[%%y][%%x]! equ %BLACK% (
                 set complete_line=%false%
             )
         )
         if !complete_line! equ %true% (
-            for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-                set GAME_BOARD[%%y][%%x]=%WHITE%
+            for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+                set /a BOARD[%%y][%%x]=%WHITE%
             )
         )
     )
@@ -373,13 +293,13 @@ exit /b 0
 
 :draw_board
     echo %ANSI%H
-    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+    for /l %%y in ( 0 1 %BOARD_HEIGHT% ) do (
         set draw_board.line[%%y]=
-        for /l %%x in ( 0 1 %GAME_WIDTH% ) do (
-            set draw_board.line[%%y]=!draw_board.line[%%y]!%ANSI%8;!GAME_BOARD[%%y][%%x]!m#
+        for /l %%x in ( 0 1 %BOARD_WIDTH% ) do (
+            set draw_board.line[%%y]=!draw_board.line[%%y]!%ANSI%8;!BOARD[%%y][%%x]!m#
         )
     )
-    for /l %%y in ( 0 1 %GAME_HEIGHT% ) do (
+    for /l %%y in ( 0 1 %BOARD_HEIGHT% ) do (
         echo !draw_board.line[%%y]!
     )
     echo %ANSI%0m
@@ -388,13 +308,13 @@ exit /b 0
 
 rem params - block_name, xpos, ypos
 :display_block
-    for /l %%y in (0 1 !%~1_HEIGHT!) do (
-        for /l %%x in (0 1 !%~1_WIDTH!) do (
+    for /l %%y in (0 1 !%~1.height!) do (
+        for /l %%x in (0 1 !%~1.width!) do (
             set /a display_block.x_pos=%%x+%~2
             set /a display_block.y_pos=%%y+%~3
             set color_=!%~1[%%y][%%x]!
             if !color_! neq %BLACK% (
-                set GAME_BOARD[!display_block.y_pos!][!display_block.x_pos!]=!color_!
+                set /a BOARD[!display_block.y_pos!][!display_block.x_pos!]=!color_!
             )
         )
     )
@@ -403,13 +323,13 @@ exit /b 0
 
 rem params - block_name, xpos, ypos
 :clear_block
-    for /l %%y in (0 1 !%~1_HEIGHT!) do (
-        for /l %%x in (0 1 !%~1_WIDTH!) do (
+    for /l %%y in (0 1 !%~1.height!) do (
+        for /l %%x in (0 1 !%~1.width!) do (
             set /a clear_block.x_pos=%%x+%~2
             set /a clear_block.y_pos=%%y+%~3
             set color_=!%~1[%%y][%%x]!
             if !color_! neq %BLACK% (
-                set GAME_BOARD[!clear_block.y_pos!][!clear_block.x_pos!]=%BLACK%
+                set /a BOARD[!clear_block.y_pos!][!clear_block.x_pos!]=%BLACK%
             )
         )
     )
@@ -419,19 +339,19 @@ exit /b 0
 rem params - return, block_name, xpos, ypos
 rem make sure you clear the block before calling
 :check_collision
-    set /a lowest_point=%~4+!%~2_HEIGHT!
-    if !lowest_point! gtr %GAME_HEIGHT% (
+    set /a lowest_point=%~4+!%~2.height!
+    if !lowest_point! gtr %BOARD_HEIGHT% (
         set %~1=%true%
         exit /b 0
     )
-    for /l %%y in (0 1 !%~2_HEIGHT!) do (
-        for /l %%x in (0 1 !%~2_WIDTH!) do (
+    for /l %%y in (0 1 !%~2.height!) do (
+        for /l %%x in (0 1 !%~2.width!) do (
             set /a check_collision.x_pos=%%x+%~3
             set /a check_collision.y_pos=%%y+%~4
             set color_=!%~2[%%y][%%x]!
-            set game_board_color=^^!GAME_BOARD[!check_collision.y_pos!][!check_collision.x_pos!]^^!
-            call :recurse game_board_color "!game_board_color!"
-            if !game_board_color! neq %BLACK% (
+            set BOARD_color=^^!BOARD[!check_collision.y_pos!][!check_collision.x_pos!]^^!
+            call :recurse BOARD_color "!BOARD_color!"
+            if !BOARD_color! neq %BLACK% (
                 rem `and` doesn't really work
                 if !color_! neq %BLACK% (
                     set %~1=%true%
@@ -454,7 +374,7 @@ rem =======
     echo Cleanup...
     pause >nul
     del tetris_istream.txt >nul
-    echo %ANSI%%GAME_HEIGHT%;%GAME_WIDTH%H%ANSI%0m
+    echo %ANSI%%BOARD_HEIGHT%;%BOARD_WIDTH%H%ANSI%0m
 
 exit /b 0
 
